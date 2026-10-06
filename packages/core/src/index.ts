@@ -1,3 +1,5 @@
+// SPDX-FileCopyrightText: 2026 Aleks Linde
+// SPDX-License-Identifier: Apache-2.0
 // @breakdial/core — dial engine. Zero dependencies, works in browser + node.
 
 export type BreakLevel = number; // clamped 0-10

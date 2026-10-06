@@ -1,3 +1,5 @@
+// SPDX-FileCopyrightText: 2026 Aleks Linde
+// SPDX-License-Identifier: Apache-2.0
 import { getLevel, shouldBreak } from '@breakdial/core';
 
 export interface BreakerOptions {

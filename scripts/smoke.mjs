@@ -1,3 +1,5 @@
+// SPDX-FileCopyrightText: 2026 Aleks Linde
+// SPDX-License-Identifier: Apache-2.0
 import { dial, getLevel, shouldBreak, defineScenario, fire, listScenarios, resetDial } from '../packages/core/dist/index.js';
 import assert from 'node:assert';
 

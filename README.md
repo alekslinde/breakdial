@@ -25,3 +25,11 @@ packages/mcp      @breakdial/mcp      breakdial_set / fire / list / verify (agen
 npm install
 npm test   # build + smoke
 ```
+
+## Licence
+
+| Part | Licence |
+|---|---|
+| `breakdial`, `@breakdial/core`, `/fetch`, `/react`, `/express`, `/mcp` | `Apache-2.0` |
+
+Permissive: embed in closed products with credit + notices kept. Copyright 2026 Aleks Linde. See `NOTICE`, `TRADEMARKS.md`, and `CONTRIBUTING.md` (DCO sign-off). Nothing was published under an earlier licence.

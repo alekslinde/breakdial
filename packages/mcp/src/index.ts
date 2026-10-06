@@ -1,3 +1,5 @@
+// SPDX-FileCopyrightText: 2026 Aleks Linde
+// SPDX-License-Identifier: Apache-2.0
 import { dial, getLevel, listScenarios, fire, levelLabel } from '@breakdial/core';
 
 export const TOOLS = [

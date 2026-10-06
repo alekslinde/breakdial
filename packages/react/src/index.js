@@ -1,3 +1,5 @@
+// SPDX-FileCopyrightText: 2026 Aleks Linde
+// SPDX-License-Identifier: Apache-2.0
 // @breakdial/react — no JSX, no build step. Requires react as peer.
 import { createElement, useState } from 'react';
 import { dial, getLevel } from '@breakdial/core';
