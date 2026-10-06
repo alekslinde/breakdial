@@ -1,0 +1,28 @@
+{
+  "name": "breakdial",
+  "version": "0.1.0",
+  "private": false,
+  "description": "One dial (0-10) that breaks anything — from UI jank to backend outage. Meta package, re-exports @breakdial/core.",
+  "type": "module",
+  "main": "./packages/core/dist/index.js",
+  "types": "./packages/core/dist/index.d.ts",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "tsc -b packages/core packages/fetch packages/express packages/mcp",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "smoke": "node ./scripts/smoke.mjs",
+    "test": "npm run build && npm run smoke"
+  },
+  "keywords": [
+    "chaos",
+    "fault-injection",
+    "testing",
+    "resilience"
+  ],
+  "license": "MIT",
+  "devDependencies": {
+    "typescript": "^5.6.3"
+  }
+}

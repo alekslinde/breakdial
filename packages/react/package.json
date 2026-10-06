@@ -1,0 +1,15 @@
+{
+  "name": "@breakdial/react",
+  "version": "0.1.0",
+  "description": "<BreakDial/> slider + useBreak() hook. Thin wrapper over @breakdial/core.",
+  "type": "module",
+  "main": "./src/index.js",
+  "files": [
+    "src"
+  ],
+  "peerDependencies": {
+    "@breakdial/core": "0.1.0",
+    "react": "^18 || ^19"
+  },
+  "license": "MIT"
+}
