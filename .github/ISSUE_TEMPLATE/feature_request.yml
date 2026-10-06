@@ -1,0 +1,14 @@
+name: Feature request
+description: A new breaker, adapter, or scenario
+labels: [enhancement]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What should break, and at which dial level?
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Why (what resilience does it verify?)
