@@ -40,18 +40,35 @@ injecting nothing.
 Shipping now; `presets`, `dom`, `playwright` and a no-code HTTP chaos proxy are next.
 
 ```
-packages/core     @breakdial/core     dial engine, seeded RNG, scenarios (zero-dep)
-packages/fetch    @breakdial/fetch    wrapFetch(): latency / 500 / timeout / offline
-packages/react    @breakdial/react    <BreakDial/> slider + useBreak()
-packages/express  @breakdial/express  breaker() middleware: delay / 500 per level
-packages/mcp      @breakdial/mcp      breakdial_set / fire / list / verify (agent remote)
+packages/breakdial  breakdial           meta package + CLI, re-exports core
+packages/core       @breakdial/core     dial engine, seeded RNG, scenarios (zero-dep)
+packages/fetch      @breakdial/fetch    wrapFetch(): latency / 500 / timeout / offline
+packages/react      @breakdial/react    <BreakDial/> slider + useBreak()
+packages/express    @breakdial/express  breaker() middleware: delay / 500 per level
+packages/mcp        @breakdial/mcp      breakdial_set / fire / list / verify (agent remote)
 ```
+
+Install `breakdial` for the engine plus the CLI, or a single `@breakdial/*`
+adapter for the host you are breaking. All adapters read one shared dial, so
+install `@breakdial/core` once.
+
+## CLI
+
+```bash
+npx breakdial --level 7 --seed ci-42
+```
+
+Reports the dial it would set. `--app <url>` is accepted but needs
+`@breakdial/proxy`, which is not released yet, and says so rather than
+appearing to proxy.
 
 ## Run
 
 ```bash
 npm install
-npm test   # build + smoke
+npm test            # build + smoke
+npm run typecheck
+npm run license:check
 ```
 
 ## Licence

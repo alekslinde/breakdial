@@ -17,7 +17,14 @@ if (!existsSync(join(ROOT, 'LICENSES/Apache-2.0.txt'))) fail('LICENSES/Apache-2.
 if (!existsSync(join(ROOT, 'LICENSE'))) fail('LICENSE missing');
 if (!existsSync(join(ROOT, 'NOTICE'))) fail('NOTICE missing');
 
-const manifests = ['', ...['core', 'fetch', 'react', 'express', 'mcp'].map((p) => `packages/${p}`)];
+// Discovered, not listed: a hardcoded list silently skips any package added
+// later, and this is the only licence gate in CI.
+const PACKAGES = readdirSync(join(ROOT, 'packages'), { withFileTypes: true })
+  .filter((e) => e.isDirectory() && existsSync(join(ROOT, 'packages', e.name, 'package.json')))
+  .map((e) => e.name)
+  .sort();
+if (PACKAGES.length === 0) fail('no packages found under packages/');
+const manifests = ['', ...PACKAGES.map((p) => `packages/${p}`)];
 for (const dir of manifests) {
   const pkg = JSON.parse(readFileSync(join(ROOT, dir, 'package.json'), 'utf8'));
   if (pkg.license !== 'Apache-2.0') fail(`${dir || '.'}/package.json license is ${pkg.license}`);
@@ -34,11 +41,14 @@ const checkDir = (dir) => {
     }
   }
 };
-checkDir('packages/core/src');
-checkDir('packages/fetch/src');
-checkDir('packages/react/src');
-checkDir('packages/express/src');
-checkDir('packages/mcp/src');
+for (const p of PACKAGES) {
+  const src = `packages/${p}/src`;
+  if (!existsSync(join(ROOT, src))) {
+    fail(`${src} missing — every package ships sources`);
+    continue;
+  }
+  checkDir(src);
+}
 checkDir('scripts');
 
 if (failures > 0) {

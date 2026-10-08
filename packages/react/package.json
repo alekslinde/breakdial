@@ -3,13 +3,43 @@
   "version": "0.1.0",
   "description": "<BreakDial/> slider + useBreak() hook. Thin wrapper over @breakdial/core.",
   "type": "module",
-  "main": "./src/index.js",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "sideEffects": false,
   "files": [
-    "src"
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json"
+  },
+  "keywords": [
+    "chaos",
+    "fault-injection",
+    "react"
   ],
   "peerDependencies": {
     "@breakdial/core": "0.1.0",
     "react": "^18 || ^19"
   },
-  "license": "Apache-2.0"
+  "devDependencies": {
+    "@breakdial/core": "0.1.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/alekslinde/breakdial.git",
+    "directory": "packages/react"
+  },
+  "homepage": "https://github.com/alekslinde/breakdial/tree/main/packages/react#readme",
+  "bugs": "https://github.com/alekslinde/breakdial/issues",
+  "license": "Apache-2.0",
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  }
 }

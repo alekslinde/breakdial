@@ -1,7 +1,7 @@
 {
-  "name": "@breakdial/express",
+  "name": "breakdial",
   "version": "0.1.0",
-  "description": "breaker() middleware: random delay / 500 / 503 scaled by dial level.",
+  "description": "One dial (0-10) that breaks anything — from UI jank to backend outage. Re-exports @breakdial/core.",
   "type": "module",
   "exports": {
     ".": {
@@ -11,6 +11,9 @@
   },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "bin": {
+    "breakdial": "./dist/cli.js"
+  },
   "sideEffects": false,
   "files": [
     "dist"
@@ -21,8 +24,8 @@
   "keywords": [
     "chaos",
     "fault-injection",
-    "express",
-    "middleware"
+    "testing",
+    "resilience"
   ],
   "dependencies": {
     "@breakdial/core": "0.1.0"
@@ -30,9 +33,9 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/alekslinde/breakdial.git",
-    "directory": "packages/express"
+    "directory": "packages/breakdial"
   },
-  "homepage": "https://github.com/alekslinde/breakdial/tree/main/packages/express#readme",
+  "homepage": "https://github.com/alekslinde/breakdial#readme",
   "bugs": "https://github.com/alekslinde/breakdial/issues",
   "license": "Apache-2.0",
   "publishConfig": {

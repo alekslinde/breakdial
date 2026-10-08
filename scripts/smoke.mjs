@@ -246,5 +246,87 @@ const committed = await new Promise((resolve) => {
 });
 assert.equal(committed, 'untouched', 'does not write to a committed response');
 
+// --- react -----------------------------------------------------------------
+// The component owns `type` and `value`. Omit<> in the prop type is erased at
+// runtime, so a plain-JS caller must not be able to override either.
+{
+  const { renderToStaticMarkup } = await import('react-dom/server');
+  const { BreakDial } = await import('../packages/react/dist/index.js');
+  const { createElement } = await import('react');
+
+  dial(6, { seed: 'react-smoke' });
+  const plain = renderToStaticMarkup(createElement(BreakDial));
+  assert.ok(plain.includes('type="range"'), 'renders a range input');
+  assert.ok(plain.includes('value="6"'), 'reflects the dial level');
+
+  const hostile = renderToStaticMarkup(
+    createElement(BreakDial, { type: 'text', value: 99, className: 'keep-me' }),
+  );
+  assert.ok(hostile.includes('type="range"'), 'caller cannot change the input type');
+  assert.ok(!hostile.includes('type="text"'), 'type="text" is not honoured');
+  assert.ok(hostile.includes('value="6"'), 'caller cannot desync the value');
+  assert.ok(hostile.includes('keep-me'), 'unrelated props still pass through');
+}
+
+// --- cli -------------------------------------------------------------------
+const { run: cliRun, parseArgs } = await import('../packages/breakdial/dist/cli.js');
+
+assert.equal(cliRun(['--level', '3'], '9.9.9').code, 0, 'valid level exits 0');
+assert.equal(cliRun(['--help'], '9.9.9').code, 0);
+assert.deepEqual(cliRun(['--version'], '9.9.9').out, ['9.9.9'], '--version prints the version');
+
+// usage errors exit 2 and explain themselves on stderr
+for (const argv of [[], ['--level', '11'], ['--level', '-1'], ['--level', 'loud'], ['--bogus'], ['--level']]) {
+  const r = cliRun(argv, '9.9.9');
+  assert.equal(r.code, 2, `${JSON.stringify(argv)} is a usage error`);
+  assert.ok(r.err.join('\n').includes('breakdial:'), 'usage error names the tool');
+}
+
+// --flag=value and short flags
+assert.equal(parseArgs(['--level=6']).level, 6, '--flag=value form');
+assert.equal(parseArgs(['-l', '6', '-s', 'abc']).seed, 'abc', 'short flags');
+
+// the level given actually reaches the engine
+cliRun(['--level', '8', '--seed', 'cli-seed'], '9.9.9');
+assert.equal(getLevel(), 8, 'cli sets the dial');
+assert.equal(getState().seed, 'cli-seed', 'cli passes the seed through');
+
+// --app is not silently ignored while the proxy is unreleased
+const app = cliRun(['--level', '3', '--app', 'http://localhost:3000'], '9.9.9');
+assert.equal(app.code, 1, '--app reports failure rather than pretending to proxy');
+assert.ok(app.err.join('\n').includes('@breakdial/proxy'), '--app names what it needs');
+// A failing run must not also print a success line that reads like the proxy
+// came up — nothing on stdout at all.
+assert.deepEqual(app.out, [], '--app writes nothing to stdout when it fails');
+
+// The bin runs when invoked through a symlink, as npm/npx install it. The
+// entry-point guard compares argv[1] to import.meta.url, which never matches
+// through a symlink unless both are realpath'd — and the failure is silent:
+// exit 0, no output. Importing run() cannot catch that, so spawn it.
+{
+  const { execFileSync, spawnSync } = await import('node:child_process');
+  const { mkdtempSync, symlinkSync, rmSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const { fileURLToPath } = await import('node:url');
+  // import-relative, like every other path here, so the suite runs from any cwd
+  const cli = fileURLToPath(new URL('../packages/breakdial/dist/cli.js', import.meta.url));
+  const dir = mkdtempSync(join(tmpdir(), 'breakdial-bin-'));
+  try {
+    const link = join(dir, 'breakdial');
+    symlinkSync(cli, link);
+    const direct = execFileSync(process.execPath, [cli, '--level', '5'], { encoding: 'utf8' });
+    assert.ok(direct.includes('level 5'), 'cli prints when run directly');
+    const viaLink = spawnSync(process.execPath, [link, '--level', '5'], { encoding: 'utf8' });
+    assert.equal(viaLink.status, 0, 'cli exits 0 through a symlink');
+    assert.ok(
+      viaLink.stdout.includes('level 5'),
+      `cli must produce output through a symlink (npx path), got ${JSON.stringify(viaLink.stdout)}`,
+    );
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
 resetDial();
-console.log('smoke OK: core + mcp + fetch + express (streams, fail-closed, restore)');
+console.log('smoke OK: core + mcp + fetch + express + react + cli (streams, fail-closed, restore)');

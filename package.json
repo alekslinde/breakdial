@@ -1,29 +1,25 @@
 {
-  "name": "breakdial",
-  "version": "0.1.0",
-  "private": false,
-  "description": "One dial (0-10) that breaks anything — from UI jank to backend outage. Meta package, re-exports @breakdial/core.",
+  "name": "breakdial-monorepo",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Workspace root for breakdial. Not published — the published root package is packages/breakdial.",
   "type": "module",
-  "main": "./packages/core/dist/index.js",
-  "types": "./packages/core/dist/index.d.ts",
   "workspaces": [
     "packages/*"
   ],
   "scripts": {
-    "build": "tsc -b packages/core packages/fetch packages/express packages/mcp",
-    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "build": "tsc -b tsconfig.json",
+    "typecheck": "tsc -b tsconfig.json --force",
     "smoke": "node ./scripts/smoke.mjs",
     "license:check": "node ./scripts/check-license.mjs",
     "test": "npm run build && npm run smoke"
   },
-  "keywords": [
-    "chaos",
-    "fault-injection",
-    "testing",
-    "resilience"
-  ],
   "license": "Apache-2.0",
   "devDependencies": {
+    "@types/node": "22.20.5",
+    "@types/react": "19.3.0",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
     "typescript": "^5.6.3"
   }
 }
