@@ -5,17 +5,48 @@ SPDX-License-Identifier: Apache-2.0
 
 # @breakdial/mcp
 
-Tool definitions and a handler that let an agent drive the BreakDial remotely:
-set the level, fire a scenario, then verify what it did.
+An MCP server that lets an agent drive the BreakDial: set the level, fire a
+scenario, then verify what it did.
 
 ```bash
 npm install @breakdial/mcp
 ```
 
+## As a server
+
+```bash
+npx breakdial-mcp          # stdio MCP server
+```
+
+```jsonc
+// register it with an MCP client
+{
+  "mcpServers": {
+    "breakdial": { "command": "npx", "args": ["breakdial-mcp"] }
+  }
+}
+```
+
+## Inside your own app
+
+The dial lives in the server's process, so a standalone server drives its own
+dial — handy for trying the tools out, but it injects no faults into your app.
+To break *your* code, create the server inside it so both share one dial:
+
+```ts
+import { startStdioServer } from '@breakdial/mcp/server'
+
+await startStdioServer()
+```
+
+`createServer()` returns the server unconnected if you want a different
+transport.
+
+## Or wire up the tools yourself
+
 ```ts
 import { TOOLS, handleTool } from '@breakdial/mcp'
 
-// register TOOLS with your MCP server, then dispatch:
 await handleTool('breakdial_set', { level: 7, seed: 'ci-42' })
 await handleTool('breakdial_verify')
 // -> { level: 7, label: 'outage', seed: 'ci-42' }
@@ -35,10 +66,10 @@ await handleTool('breakdial_verify')
 being injected. `breakdial_verify` returns the seed, so an agent can hand back a
 reproduction.
 
-## Transport
+## Errors
 
-This package is transport-agnostic: it exports the tool schemas and a dispatcher
-for you to register with an MCP server. It does not open a stdio server itself.
+A rejected level or an unknown scenario comes back as an error result, not a
+dropped connection, so an agent can read what went wrong and carry on.
 
 ## Licence
 

@@ -1,7 +1,7 @@
 {
   "name": "@breakdial/fetch",
   "version": "0.1.0",
-  "description": "wrapFetch(): latency / 500 / timeout / offline faults scaled by dial level.",
+  "description": "wrapFetch(): latency / 500 / timeout / offline / abort faults scaled by dial level.",
   "type": "module",
   "exports": {
     ".": {

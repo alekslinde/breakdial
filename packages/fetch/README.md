@@ -29,8 +29,28 @@ restore()
 |---|---|---|
 | `latencyMs` | `300` | base delay, scaled by level (L10 adds ~3000ms) |
 | `failureRate` | `0.5` | probability of an injected 500 at L10 |
+| `timeoutMs` | `30000` | how long a timeout fault hangs before rejecting |
+| `timeoutRate` | `0.1` | probability of a hang at L10 |
+| `offlineRate` | `0.1` | probability of an offline blip at L10 |
 | `only` | `[]` | match these URL substrings; empty matches all |
 | `key` | URL | stream key per request (see below) |
+
+## Faults
+
+| fault | what your code sees |
+|---|---|
+| latency | the request resolves late |
+| offline | `TypeError: failed to fetch`, as when the network is down |
+| timeout | hangs, then `TimeoutError` — or `AbortError` if your own signal fires first |
+| error response | a real `Response` with status `500` |
+| abort | `AbortError` (level 8+ only) |
+
+They are evaluated in a fixed order, so a given seed always produces the same
+fault for the same request.
+
+Set `timeoutMs` above your client's own deadline to assert the client gives up
+first; the hang honours an `AbortSignal` you pass in. The timer is unref'd, so
+a hung request never keeps an otherwise idle Node process alive.
 
 ## Reproducibility
 

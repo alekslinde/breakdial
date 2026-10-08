@@ -45,7 +45,7 @@ packages/core       @breakdial/core     dial engine, seeded RNG, scenarios (zero
 packages/fetch      @breakdial/fetch    wrapFetch(): latency / 500 / timeout / offline
 packages/react      @breakdial/react    <BreakDial/> slider + useBreak()
 packages/express    @breakdial/express  breaker() middleware: delay / 500 per level
-packages/mcp        @breakdial/mcp      breakdial_set / fire / list / verify (agent remote)
+packages/mcp        @breakdial/mcp      MCP server: breakdial_set / fire / list / verify
 ```
 
 Install `breakdial` for the engine plus the CLI, or a single `@breakdial/*`

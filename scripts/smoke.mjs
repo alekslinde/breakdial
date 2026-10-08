@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import {
   dial, getDial, getLevel, getState, shouldBreak, levelLabel,
-  defineScenario, fire, listScenarios, resetDial,
+  defineScenario, fire, listScenarios, resetDial, Dial,
 } from '../packages/core/dist/index.js';
 import assert from 'node:assert';
 
@@ -91,6 +91,47 @@ const dv = dial(5, { seed: 'vary' });
 const outcomes = new Set(Array.from({ length: 24 }, () => dv.stream('/checkout').shouldBreak(0.5)));
 assert.equal(outcomes.size, 2, 'repeated requests to one route both break and pass');
 
+// --- pick() ----------------------------------------------------------------
+{
+  const d = dial(5, { seed: 'pick' });
+  assert.equal(d.pick([]), undefined, 'empty array yields undefined');
+  assert.equal(d.pick(['only']), 'only', 'single element always chosen');
+
+  // Every element is reachable, and the choice is keyed and reproducible.
+  const seen = new Set(
+    Array.from({ length: 200 }, () => dial(5, { seed: 'pick-dist' }).stream('k').pick(['a', 'b', 'c'])),
+  );
+  assert.equal(seen.size, 1, 'a fresh dial + same key always picks the same element');
+  const runs = [1, 2].map(() => {
+    const dd = dial(5, { seed: 'pick-seq' });
+    return Array.from({ length: 6 }, () => dd.stream('q').pick(['a', 'b', 'c'])).join('');
+  });
+  assert.equal(runs[0], runs[1], 'the same seed replays the same picks');
+  assert.ok(new Set(runs[0]).size > 1, 'successive picks on one key vary');
+}
+
+// --- Dial / BreakStream used directly --------------------------------------
+// Both are public exports, so a consumer can hold an isolated dial instead of
+// the global one (parallel test workers, say).
+{
+  const d = new Dial(7, 'direct');
+  assert.equal(d.level, 7);
+  assert.equal(d.label, 'outage');
+  assert.deepEqual(d.toState(), { level: 7, seed: 'direct' });
+  // An isolated Dial must not disturb the global one.
+  dial(2, { seed: 'global' });
+  d.stream('x').shouldBreak(1);
+  assert.equal(getLevel(), 2, 'a directly constructed Dial leaves the global dial alone');
+
+  // rate 1 at level 7 means 70% per draw, not "always" — check the model
+  // rather than a single draw.
+  const s = new Dial(7, 'rate').stream('k');
+  const hits = Array.from({ length: 1000 }, () => s.shouldBreak(1)).filter(Boolean).length;
+  assert.ok(hits > 600 && hits < 800, `level 7 rate 1 should break ~70% of the time, got ${hits}/1000`);
+  assert.equal(new Dial(10, 'certain').stream('k').shouldBreak(1), true, 'level 10 rate 1 is certain');
+  assert.equal(new Dial(0, 'off').stream('k').shouldBreak(1), false, 'level 0 never breaks');
+}
+
 // --- scenarios -------------------------------------------------------------
 defineScenario('smoke-ok', () => {});
 assert.ok(listScenarios().includes('smoke-ok'));
@@ -101,7 +142,7 @@ try { await fire('nope'); } catch { threw = true; }
 assert.ok(threw, 'unknown scenario throws');
 
 // --- mcp -------------------------------------------------------------------
-const { handleTool } = await import('../packages/mcp/dist/index.js');
+const { handleTool, TOOLS } = await import('../packages/mcp/dist/index.js');
 const out = await handleTool('breakdial_set', { level: 3, seed: 'mcp-seed' });
 assert.equal(out.level, 3);
 assert.equal(out.label, 'jank');
@@ -114,6 +155,53 @@ assert.equal(verified.seed, 'mcp-seed', 'verify reports the reproduction seed');
 let mcpThrew = false;
 try { await handleTool('breakdial_set', { level: 'loud' }); } catch { mcpThrew = true; }
 assert.ok(mcpThrew, 'mcp rejects a non-numeric level instead of reporting NaN');
+
+// The stdio server must actually complete an MCP handshake and serve the
+// tools. Compiling is not evidence that it speaks the protocol, so drive it
+// with a real client over a spawned process.
+{
+  const { Client } = await import('@modelcontextprotocol/sdk/client/index.js');
+  const { StdioClientTransport } = await import('@modelcontextprotocol/sdk/client/stdio.js');
+  const { fileURLToPath } = await import('node:url');
+  const bin = fileURLToPath(new URL('../packages/mcp/dist/bin.js', import.meta.url));
+  const repo = fileURLToPath(new URL('..', import.meta.url));
+
+  const client = new Client({ name: 'breakdial-smoke', version: '0.0.0' });
+  await client.connect(new StdioClientTransport({
+    command: process.execPath,
+    args: [bin],
+    cwd: repo,
+  }));
+  try {
+    const { tools } = await client.listTools();
+    assert.deepEqual(
+      tools.map((t) => t.name).sort(),
+      ['breakdial_fire', 'breakdial_list', 'breakdial_set', 'breakdial_verify'],
+      'the server advertises every tool',
+    );
+    // The advertised schema is the one the dispatcher documents, so the two
+    // cannot drift.
+    assert.deepEqual(
+      tools.find((t) => t.name === 'breakdial_set').inputSchema,
+      TOOLS.find((t) => t.name === 'breakdial_set').inputSchema,
+      'advertised schema matches TOOLS',
+    );
+
+    const set = await client.callTool({ name: 'breakdial_set', arguments: { level: 7, seed: 'agent' } });
+    assert.deepEqual(JSON.parse(set.content[0].text), { level: 7, label: 'outage', seed: 'agent' });
+
+    // A bad call is reported to the agent, not fatal to the session.
+    const bad = await client.callTool({ name: 'breakdial_set', arguments: { level: 'loud' } });
+    assert.equal(bad.isError, true, 'a rejected level is an error result');
+    const unknown = await client.callTool({ name: 'breakdial_fire', arguments: { name: 'nope' } });
+    assert.equal(unknown.isError, true, 'an unknown scenario is an error result');
+
+    const after = await client.callTool({ name: 'breakdial_verify', arguments: {} });
+    assert.equal(JSON.parse(after.content[0].text).level, 7, 'the server survives failed calls');
+  } finally {
+    await client.close();
+  }
+}
 
 // --- fetch -----------------------------------------------------------------
 const { wrapFetch } = await import('../packages/fetch/dist/index.js');
@@ -142,7 +230,7 @@ globalThis.fetch = sentinel;
 // pins composition rather than a particular draw.
 globalThis.fetch = sentinel;
 dial(10, { seed: 'nested' });
-const inner = wrapFetch({ only: ['/x'], failureRate: 1, latencyMs: 0 });
+const inner = wrapFetch({ only: ['/x'], failureRate: 1, latencyMs: 0, timeoutRate: 0, offlineRate: 0 });
 const outer = wrapFetch({ only: ['/never-matches'], latencyMs: 0 });
 const nested = await fetch('http://h/x');
 assert.equal(nested.status, 500, 'inner wrap not bypassed by outer');
@@ -152,7 +240,7 @@ assert.equal(globalThis.fetch, sentinel, 'reverse unwind restores original');
 
 // `only` filter
 dial(10, { seed: 'fetch-only' });
-restore = wrapFetch({ only: ['/break'], failureRate: 1, latencyMs: 0 });
+restore = wrapFetch({ only: ['/break'], failureRate: 1, latencyMs: 0, timeoutRate: 0, offlineRate: 0 });
 assert.equal((await fetch('http://x/safe')).status, 200, 'unmatched URL untouched');
 restore();
 globalThis.fetch = sentinel;
@@ -160,15 +248,26 @@ globalThis.fetch = sentinel;
 // requests are keyed independently: two different URLs draw from their own
 // streams, so one URL's faults never shift another's sequence.
 const statusesFor = async (urls, key) => {
-  dial(4, { seed: 'fetch-keys' });
+  dial(6, { seed: 'fetch-keys' });
   globalThis.fetch = sentinel;
-  const off = wrapFetch({ latencyMs: 0, failureRate: 0.5, ...(key ? { key } : {}) });
+  // Only the 500 fault, so the assertions below compare status codes. The
+  // timeout and offline faults are tested on their own further down; leaving
+  // them at their defaults here would hang or throw instead.
+  const off = wrapFetch({
+    latencyMs: 0,
+    failureRate: 0.5,
+    timeoutRate: 0,
+    offlineRate: 0,
+    ...(key ? { key } : {}),
+  });
   const out = [];
   for (const u of urls) out.push((await fetch(u)).status);
   off();
   return out;
 };
-const urlsA = ['http://h/a', 'http://h/b', 'http://h/c', 'http://h/d'];
+// Enough distinct URLs that per-URL and single-bucket keying cannot coincide
+// by luck: with one bucket the draws advance together, so the pattern differs.
+const urlsA = Array.from({ length: 12 }, (_, i) => `http://h/p${i}`);
 // Interleaving a second URL must not change what /a sees.
 const soloRuns = await statusesFor(['http://h/a', 'http://h/a', 'http://h/a']);
 const wovenRuns = await statusesFor(['http://h/a', 'http://h/zzz', 'http://h/a', 'http://h/zzz', 'http://h/a']);
@@ -181,6 +280,58 @@ const byUrl = await statusesFor(urlsA);
 const oneBucket = await statusesFor(urlsA, () => 'same-bucket');
 assert.notDeepEqual(byUrl, oneBucket, 'the key function selects the stream');
 globalThis.fetch = sentinel;
+
+// --- fetch: offline and timeout faults -------------------------------------
+{
+  // offline: the request never reaches the network, as when it is down
+  dial(10, { seed: 'offline' });
+  globalThis.fetch = sentinel;
+  let off = wrapFetch({ offlineRate: 1, latencyMs: 0 });
+  await assert.rejects(
+    () => fetch('http://h/x'),
+    (e) => e instanceof TypeError && /offline/.test(e.message),
+    'offline rejects with a TypeError, like a browser with no network',
+  );
+  off();
+
+  // timeout: honours the caller's own deadline, so a client with an
+  // AbortController gives up on schedule instead of waiting out the hang
+  dial(10, { seed: 'timeout-abort' });
+  off = wrapFetch({ timeoutRate: 1, offlineRate: 0, latencyMs: 0, timeoutMs: 30_000 });
+  const ac = new AbortController();
+  const started = Date.now();
+  setTimeout(() => ac.abort(), 50);
+  await assert.rejects(
+    () => fetch('http://h/x', { signal: ac.signal }),
+    (e) => e.name === 'AbortError',
+    'a caller signal aborts the hang',
+  );
+  assert.ok(Date.now() - started < 5000, 'the client deadline won, not the 30s hang');
+  off();
+
+  // timeout: rejects on its own deadline when the caller has none
+  dial(10, { seed: 'timeout-own' });
+  off = wrapFetch({ timeoutRate: 1, offlineRate: 0, latencyMs: 0, timeoutMs: 60 });
+  // The hang's timer is unref'd, so hold the loop open to observe it firing.
+  const keepAlive = setInterval(() => {}, 10);
+  try {
+    await assert.rejects(
+      () => fetch('http://h/x'),
+      (e) => e.name === 'TimeoutError',
+      'the hang eventually rejects as a timeout',
+    );
+  } finally {
+    clearInterval(keepAlive);
+    off();
+  }
+
+  // both faults are off at level 0
+  dial(0);
+  off = wrapFetch({ offlineRate: 1, timeoutRate: 1, timeoutMs: 10 });
+  assert.equal((await fetch('http://h/x')).status, 200, 'level 0 injects neither fault');
+  off();
+  globalThis.fetch = sentinel;
+}
 
 // --- express ---------------------------------------------------------------
 const { breaker } = await import('../packages/express/dist/index.js');

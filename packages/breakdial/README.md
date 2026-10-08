@@ -46,7 +46,7 @@ npx breakdial --level 7 --seed ci-42
 | [`@breakdial/fetch`](https://www.npmjs.com/package/@breakdial/fetch) | `wrapFetch()`: latency / 500 / abort |
 | [`@breakdial/express`](https://www.npmjs.com/package/@breakdial/express) | `breaker()` middleware |
 | [`@breakdial/react`](https://www.npmjs.com/package/@breakdial/react) | `<BreakDial/>` slider + `useBreak()` |
-| [`@breakdial/mcp`](https://www.npmjs.com/package/@breakdial/mcp) | agent remote control |
+| [`@breakdial/mcp`](https://www.npmjs.com/package/@breakdial/mcp) | MCP server for agent control |
 
 ## Licence
 
