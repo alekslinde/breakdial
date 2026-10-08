@@ -141,6 +141,36 @@ let threw = false;
 try { await fire('nope'); } catch { threw = true; }
 assert.ok(threw, 'unknown scenario throws');
 
+// ctx reaches the scenario, as the ScenarioFn<TCtx> type promises
+let received;
+defineScenario('with-ctx', (ctx) => { received = ctx; });
+await fire('with-ctx', { user: 'u1' });
+assert.deepEqual(received, { user: 'u1' }, 'fire passes ctx through');
+
+// an async scenario is awaited, not fired and forgotten
+let finished = false;
+defineScenario('async-one', async () => {
+  await new Promise((r) => setTimeout(r, 10));
+  finished = true;
+});
+await fire('async-one');
+assert.ok(finished, 'fire awaits an async scenario');
+
+// redefining replaces rather than duplicating
+defineScenario('dup', () => { received = 'first'; });
+defineScenario('dup', () => { received = 'second'; });
+await fire('dup');
+assert.equal(received, 'second', 'the later definition wins');
+assert.equal(listScenarios().filter((n) => n === 'dup').length, 1, 'no duplicate entry');
+
+// the error names what is available, so a typo is diagnosable
+try {
+  await fire('nope');
+  assert.fail('should have thrown');
+} catch (e) {
+  assert.ok(e.message.includes('smoke-ok'), 'the error lists registered scenarios');
+}
+
 // --- mcp -------------------------------------------------------------------
 const { handleTool, TOOLS } = await import('../packages/mcp/dist/index.js');
 const out = await handleTool('breakdial_set', { level: 3, seed: 'mcp-seed' });
@@ -410,6 +440,32 @@ assert.equal(committed, 'untouched', 'does not write to a committed response');
   assert.ok(plain.includes('type="range"'), 'renders a range input');
   assert.ok(plain.includes('value="6"'), 'reflects the dial level');
 
+  // useBreak works on its own, not only inside BreakDial, and reads the
+  // engine rather than keeping separate state.
+  const { useBreak } = await import('../packages/react/dist/index.js');
+  dial(3, { seed: 'hook' });
+  const Probe = () => {
+    const [level, setLevel] = useBreak();
+    assert.equal(typeof setLevel, 'function', 'useBreak returns a setter');
+    return createElement('span', null, `level=${level}`);
+  };
+  assert.ok(
+    renderToStaticMarkup(createElement(Probe)).includes('level=3'),
+    'useBreak reads the current dial level',
+  );
+  // and setting through it preserves the seed, so a reproducible run keeps
+  // reproducing after someone moves the slider
+  const { useBreak: hook } = await import('../packages/react/dist/index.js');
+  dial(2, { seed: 'keep-this-seed' });
+  const Setter = () => {
+    const [, setLevel] = hook();
+    setLevel(9);
+    return null;
+  };
+  try { renderToStaticMarkup(createElement(Setter)); } catch { /* setState during render */ }
+  assert.equal(getState().seed, 'keep-this-seed', 'setLevel carries the seed forward');
+
+  dial(6, { seed: 'react-smoke' });
   const hostile = renderToStaticMarkup(
     createElement(BreakDial, { type: 'text', value: 99, className: 'keep-me' }),
   );

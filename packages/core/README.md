@@ -39,6 +39,24 @@ vary and retry paths stay reachable.
 The flat `shouldBreak()` / `pick()` helpers draw from a shared stream and are
 order-dependent — prefer `stream(key)` under concurrency.
 
+## Scenarios
+
+Name a specific failure so a test — or an agent, via `@breakdial/mcp` — can
+trigger it on demand, rather than waiting for the dial to roll it:
+
+```ts
+import { defineScenario, fire } from '@breakdial/core'
+
+defineScenario('payment-gateway-down', async (ctx) => {
+  await ctx.server.stop()
+})
+
+await fire('payment-gateway-down', { server })
+```
+
+`fire()` awaits an async scenario and rejects on an unknown name, listing what
+is registered. Defining the same name twice replaces it.
+
 ## Failing closed
 
 A level that cannot be read (`NaN`, `Infinity`, a non-number) clamps to `0`.
