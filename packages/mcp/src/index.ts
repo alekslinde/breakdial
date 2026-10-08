@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Aleks Linde
 // SPDX-License-Identifier: Apache-2.0
-import { dial, getLevel, listScenarios, fire, levelLabel } from '@breakdial/core';
+import { dial, getDial, listScenarios, fire } from '@breakdial/core';
 
 export const TOOLS = [
   {
@@ -24,16 +24,26 @@ export const TOOLS = [
 export async function handleTool(name: string, args: any = {}) {
   switch (name) {
     case 'breakdial_set': {
-      const s = dial(args.level ?? 0, { seed: args.seed });
-      return { level: s.level, label: levelLabel(s.level) };
+      // Reject a level we cannot read rather than reporting NaN as
+      // "catastrophe" — an agent would be told chaos is at maximum while
+      // nothing is actually being injected.
+      const raw = args.level ?? 0;
+      const level = typeof raw === 'number' ? raw : Number(raw);
+      if (!Number.isFinite(level)) {
+        throw new Error(`breakdial/mcp: level must be a finite number 0-10, got ${JSON.stringify(raw)}`);
+      }
+      const d = dial(level, { seed: args.seed });
+      return { level: d.level, label: d.label, seed: d.seed };
     }
     case 'breakdial_list':
       return { scenarios: listScenarios() };
     case 'breakdial_fire':
       await fire(args.name);
       return { fired: args.name };
-    case 'breakdial_verify':
-      return { level: getLevel(), label: levelLabel() };
+    case 'breakdial_verify': {
+      const d = getDial();
+      return { level: d.level, label: d.label, seed: d.seed };
+    }
     default:
       throw new Error(`breakdial/mcp: unknown tool "${name}"`);
   }
