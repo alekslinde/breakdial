@@ -1,0 +1,19 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "composite": false,
+    "declaration": false,
+    "sourceMap": false,
+    "inlineSources": false,
+    // Resolve siblings to their SOURCES, so this typechecks a fresh clone
+    // without needing dist/ to exist first. The real build still resolves
+    // through exports/dist via project references.
+    "paths": {
+      "@breakdial/core": ["./packages/core/src/index.ts"]
+    }
+  },
+  "include": [
+    "packages/*/src/**/*"
+  ]
+}

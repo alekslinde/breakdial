@@ -39,13 +39,15 @@ jobs:
 
       - run: npm ci
 
-      # install -> build -> test, in that order: the smoke suite imports
-      # dist/ through the real resolver, so an unbuilt tree would test nothing.
-      - name: Build
-        run: npm run build
-
+      # Typecheck first: it is non-emitting and resolves siblings to their
+      # sources, so it needs no build and reports type errors before a slower
+      # build obscures them. Build then precedes the smoke suite, which imports
+      # dist/ through the real resolver and would otherwise test nothing.
       - name: Typecheck
         run: npm run typecheck
+
+      - name: Build
+        run: npm run build
 
       - name: Smoke test the built output
         run: npm run smoke

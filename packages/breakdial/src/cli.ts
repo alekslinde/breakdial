@@ -43,17 +43,26 @@ export function parseArgs(argv: readonly string[]): ParsedArgs {
 
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i]!;
-    // Accept --flag=value as well as --flag value.
+    // Accept --flag=value as well as --flag value. Split at the first `=` in
+    // any dash-prefixed token: a `-=x` left unsplit would reach the unknown-
+    // option error with its value still attached, and get echoed into logs.
     const eq = arg.indexOf('=');
-    const [flag, inlineValue] = eq > 1 && arg.startsWith('-')
+    const [flag, inlineValue] = eq >= 0 && arg.startsWith('-')
       ? [arg.slice(0, eq), arg.slice(eq + 1)]
       : [arg, undefined];
     // `--=value` splits to a bare `--`, which names nothing useful back to the
     // user; reject the token shape rather than reporting an empty flag.
-    if (/^-+$/.test(flag)) throw new UsageError('expected an option name');
+    if (/^-*$/.test(flag)) throw new UsageError('expected an option name');
     const takeValue = (name: string): string => {
       const v = inlineValue ?? argv[++i];
       if (v === undefined || v === '') throw new UsageError(`${name} needs a value`);
+      // A value that looks like a flag means the real value was omitted:
+      // `--seed --version` would otherwise record "--version" as the seed and
+      // silently drop the flag, so the seed recorded for a failed run would
+      // not match the command that produced it.
+      if (inlineValue === undefined && v.startsWith('-')) {
+        throw new UsageError(`${name} needs a value (got the option "${v}")`);
+      }
       return v;
     };
 
@@ -73,8 +82,11 @@ export function parseArgs(argv: readonly string[]): ParsedArgs {
         // variable would exit 0 with chaos silently off, which is the one
         // outcome a fault-injection tool must never produce. Demand an
         // integer 0-10, written plainly.
+        // Do not echo the value: the same reasoning as the unknown-option
+        // branch below. A seed or token mistyped into --level would otherwise
+        // land in stderr and CI logs.
         if (!/^(10|[0-9])$/.test(raw.trim())) {
-          throw new UsageError(`--level must be a whole number 0-10, got "${raw}"`);
+          throw new UsageError('--level must be a whole number 0-10');
         }
         out.level = Number(raw.trim());
         sawLevel = true;

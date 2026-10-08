@@ -45,6 +45,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # `git tag --points-at HEAD` needs tags, which a shallow clone omits.
+          fetch-depth: 0
 
       - uses: actions/setup-node@v4
         with:
@@ -53,13 +56,15 @@ jobs:
 
       - run: npm ci
 
-      # install -> build -> test: the smoke suite imports dist/ through the
-      # real resolver, so an unbuilt tree would assert nothing.
-      - name: Build
-        run: npm run build
-
+      # Typecheck first: it is non-emitting and resolves siblings to their
+      # sources, so it needs no build. Build then precedes the smoke suite,
+      # which imports dist/ through the real resolver and would otherwise
+      # assert nothing.
       - name: Typecheck
         run: npm run typecheck
+
+      - name: Build
+        run: npm run build
 
       - name: Smoke test the built output
         run: npm run smoke
@@ -71,10 +76,23 @@ jobs:
         run: npm run check:tarballs
 
       # The tag must match what the manifests say, or the release is named one
-      # thing and contains another.
-      - name: Check tag matches package versions
-        if: startsWith(github.ref, 'refs/tags/v')
-        run: node ./scripts/check-release-tag.mjs "${GITHUB_REF_NAME}"
+      # thing and contains another. On a workflow_dispatch run there is no tag,
+      # so the manifests are checked against the tag that already points at
+      # this commit — a dispatch from an untagged commit is refused rather than
+      # staged unverified.
+      - name: Check versions match the release tag
+        run: |
+          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+            node ./scripts/check-release-tag.mjs "${GITHUB_REF_NAME}"
+          else
+            TAG=$(git tag --points-at HEAD 'v*' | head -1)
+            if [ -z "$TAG" ]; then
+              echo "::error::no v* tag points at ${GITHUB_SHA}. Tag the release commit before staging."
+              exit 1
+            fi
+            echo "Using tag ${TAG} (points at HEAD)."
+            node ./scripts/check-release-tag.mjs "$TAG"
+          fi
 
   stage-core:
     needs: verify

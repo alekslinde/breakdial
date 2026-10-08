@@ -324,13 +324,40 @@ for (const argv of [['--=oops'], ['--'], ['-']]) {
   );
 }
 
-// A mistyped flag must not echo its attached value: `--sed=ci-42` is a typo
-// for --seed, and the value lands in stderr and CI logs.
-const typo = cliRun(['--level', '3', '--sed=super-secret'], '9.9.9');
-assert.equal(typo.code, 2);
-const typoText = typo.err.join('\n');
-assert.ok(typoText.includes('--sed'), 'names the unknown flag');
-assert.ok(!typoText.includes('super-secret'), 'does not echo the attached value');
+// No error may echo a supplied value: a seed or token mistyped into any flag
+// would otherwise land in stderr and CI logs. Covers every shape that carries
+// a value, including the single-dash `-=x` form.
+for (const argv of [
+  ['--level', '3', '--sed=super-secret'],
+  ['-=super-secret'],
+  ['--level', 'super-secret'],
+  ['--level=super-secret'],
+  ['-l=super-secret'],
+  ['--seed=ok', '--bogus=super-secret'],
+]) {
+  const r = cliRun(argv, '9.9.9');
+  assert.equal(r.code, 2, `${JSON.stringify(argv)} is a usage error`);
+  assert.ok(
+    !r.err.join('\n').includes('super-secret'),
+    `${JSON.stringify(argv)} must not echo the supplied value, got ${JSON.stringify(r.err[0])}`,
+  );
+}
+// the unknown-flag error still names the flag, so the message stays useful
+assert.ok(
+  cliRun(['--sed=x'], '9.9.9').err.join('\n').includes('--sed'),
+  'unknown option still names the flag',
+);
+
+// A flag-shaped value means the real value was omitted. `--seed --version`
+// would otherwise record "--version" as the seed and drop the flag, so the
+// seed reported for a failed run would not match the command that ran.
+for (const argv of [['--seed', '--version'], ['--level', '--seed'], ['--seed', '-v']]) {
+  const r = cliRun(argv, '9.9.9');
+  assert.equal(r.code, 2, `${JSON.stringify(argv)} is a usage error`);
+  assert.ok(r.err.join('\n').includes('needs a value'), 'says the value is missing');
+}
+// but an inline value may legitimately start with a dash
+assert.equal(parseArgs(['--level', '3', '--seed=-dash']).seed, '-dash', 'inline dash value is kept');
 
 // --flag=value and short flags
 assert.equal(parseArgs(['--level=6']).level, 6, '--flag=value form');

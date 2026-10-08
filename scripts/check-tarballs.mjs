@@ -103,11 +103,24 @@ try {
       else fail(`${name}: ${t} is referenced by the manifest but not in the tarball`);
     }
 
-    // Sources must not ship: they bloat the tarball and the sourcemaps that
-    // reference them resolve to nothing anyway.
+    // Sources must not ship: they bloat the tarball for every consumer.
     const src = entries.filter((p) => p.startsWith('src/'));
     if (src.length === 0) ok(`${name}: no src/ in the tarball`);
     else fail(`${name}: ships ${src.length} src/ file(s)`);
+
+    // Since src/ is excluded, a sourcemap's `sources` path resolves to nothing
+    // on a consumer's disk. It only works if the text is embedded, so a map
+    // without sourcesContent is a dead map that still costs download size.
+    for (const map of entries.filter((p) => p.endsWith('.map'))) {
+      const onDisk = join(root('packages'), pkg, map);
+      if (!existsSync(onDisk)) continue;
+      const parsed = JSON.parse(readFileSync(onDisk, 'utf8'));
+      const embedded = Array.isArray(parsed.sourcesContent)
+        && parsed.sourcesContent.length > 0
+        && parsed.sourcesContent.every((c) => typeof c === 'string' && c.length > 0);
+      if (embedded) ok(`${name}: ${map} embeds its sources`);
+      else fail(`${name}: ${map} references ${JSON.stringify(parsed.sources)}, which is not shipped (set inlineSources)`);
+    }
 
     // An unresolvable range publishes a package nobody can install. Peers
     // count: @breakdial/react declares its dependencies only there, so
