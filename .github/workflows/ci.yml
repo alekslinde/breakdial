@@ -37,6 +37,14 @@ jobs:
       - name: Check runner satisfies engines.node
         run: node ./scripts/check-node-floor.mjs
 
+      # Each Node major bundles a different npm, and npm's `--json` output
+      # shapes have changed across majors. Record which one ran, so a future
+      # difference is diagnosable from the log rather than by guesswork.
+      - name: Record toolchain
+        run: |
+          echo "node $(node -v), npm $(npm -v)"
+          echo "node $(node -v), npm $(npm -v)" >> "$GITHUB_STEP_SUMMARY"
+
       - run: npm ci
 
       # Typecheck first: it is non-emitting and resolves siblings to their

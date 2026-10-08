@@ -48,9 +48,13 @@ try {
     );
     const name = manifest.name;
 
-    // Read the file list npm itself reports for this package, keyed by name.
-    // Scanning the directory for a .tgz could pick up a stale tarball and
-    // report `ok` for files it never looked at, defeating the whole point.
+    // Read the file list npm itself reports for this package. Scanning the
+    // directory for a .tgz could pick up a stale tarball and report `ok` for
+    // files it never looked at, defeating the whole point.
+    //
+    // The report's shape differs by npm major: npm <= 11 emits an array of
+    // entries, npm 12 an object keyed by package name. Accept both, or CI on
+    // an older Node (which bundles an older npm) sees no tarball at all.
     const packed = JSON.parse(
       execFileSync(
         'npm',
@@ -58,9 +62,14 @@ try {
         { cwd: root('.'), stdio: ['ignore', 'pipe', 'ignore'], encoding: 'utf8' },
       ),
     );
-    const report = packed[name];
+    const reports = Array.isArray(packed) ? packed : Object.values(packed);
+    const report = reports.find((r) => r?.name === name) ?? reports[0];
     if (!report?.filename || !existsSync(join(dir, report.filename))) {
-      fail(`${name}: npm pack produced no tarball`);
+      fail(
+        `${name}: npm pack produced no tarball`
+        + ` (npm ${process.env.npm_config_user_agent ?? 'unknown'} reported `
+        + `${JSON.stringify(reports.map((r) => r?.filename ?? null))})`,
+      );
       continue;
     }
     const entries = (report.files ?? []).map((f) => f.path);
