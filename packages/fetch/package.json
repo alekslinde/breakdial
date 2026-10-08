@@ -1,18 +1,45 @@
 {
   "name": "@breakdial/fetch",
   "version": "0.1.0",
-  "description": "wrapFetch(): latency / 500 / timeout / offline faults scaled by dial level.",
+  "description": "wrapFetch(): latency / 500 / timeout / offline / abort faults scaled by dial level.",
   "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "sideEffects": false,
   "files": [
-    "dist"
+    "dist",
+    "NOTICE"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json"
   },
+  "keywords": [
+    "chaos",
+    "fault-injection",
+    "fetch"
+  ],
   "dependencies": {
     "@breakdial/core": "0.1.0"
   },
-  "license": "Apache-2.0"
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/alekslinde/breakdial.git",
+    "directory": "packages/fetch"
+  },
+  "homepage": "https://github.com/alekslinde/breakdial/tree/main/packages/fetch#readme",
+  "bugs": "https://github.com/alekslinde/breakdial/issues",
+  "license": "Apache-2.0",
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "engines": {
+    "node": ">=22.14.0"
+  }
 }

@@ -3,10 +3,18 @@
   "version": "0.1.0",
   "description": "BreakDial core: dial 0-10, seeded RNG, scenario registry. Zero dependencies.",
   "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "sideEffects": false,
   "files": [
-    "dist"
+    "dist",
+    "NOTICE"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json"
@@ -15,5 +23,19 @@
     "chaos",
     "fault-injection"
   ],
-  "license": "Apache-2.0"
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/alekslinde/breakdial.git",
+    "directory": "packages/core"
+  },
+  "homepage": "https://github.com/alekslinde/breakdial/tree/main/packages/core#readme",
+  "bugs": "https://github.com/alekslinde/breakdial/issues",
+  "license": "Apache-2.0",
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "engines": {
+    "node": ">=22.14.0"
+  }
 }

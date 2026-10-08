@@ -3,9 +3,10 @@
 // Checks each source file's header names the licence for its directory,
 // manifest fields match, and LICENSES/ has every text.
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
 
-const ROOT = new URL('..', import.meta.url).pathname;
+const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const MARKER = ['SPDX-License', 'Identifier: Apache-2.0'].join('-'); // split so linters don't read this line as a declaration
 let failures = 0;
 const fail = (msg) => {
@@ -17,7 +18,14 @@ if (!existsSync(join(ROOT, 'LICENSES/Apache-2.0.txt'))) fail('LICENSES/Apache-2.
 if (!existsSync(join(ROOT, 'LICENSE'))) fail('LICENSE missing');
 if (!existsSync(join(ROOT, 'NOTICE'))) fail('NOTICE missing');
 
-const manifests = ['', ...['core', 'fetch', 'react', 'express', 'mcp'].map((p) => `packages/${p}`)];
+// Discovered, not listed: a hardcoded list silently skips any package added
+// later, and this is the only licence gate in CI.
+const PACKAGES = readdirSync(join(ROOT, 'packages'), { withFileTypes: true })
+  .filter((e) => e.isDirectory() && existsSync(join(ROOT, 'packages', e.name, 'package.json')))
+  .map((e) => e.name)
+  .sort();
+if (PACKAGES.length === 0) fail('no packages found under packages/');
+const manifests = ['', ...PACKAGES.map((p) => `packages/${p}`)];
 for (const dir of manifests) {
   const pkg = JSON.parse(readFileSync(join(ROOT, dir, 'package.json'), 'utf8'));
   if (pkg.license !== 'Apache-2.0') fail(`${dir || '.'}/package.json license is ${pkg.license}`);
@@ -34,12 +42,26 @@ const checkDir = (dir) => {
     }
   }
 };
-checkDir('packages/core/src');
-checkDir('packages/fetch/src');
-checkDir('packages/react/src');
-checkDir('packages/express/src');
-checkDir('packages/mcp/src');
+// A package need not have sources (a data-only or dist-only package is
+// legitimate); only its manifest licence is mandatory, checked above.
+for (const p of PACKAGES) {
+  const src = `packages/${p}/src`;
+  if (existsSync(join(ROOT, src))) checkDir(src);
+}
 checkDir('scripts');
+
+// Each package ships its own NOTICE copy, because npm does not auto-pack it
+// and Apache-2.0 4(d) requires it to travel with redistributions. Copies drift
+// silently, and a stale NOTICE in a published tarball cannot be recalled.
+const rootNotice = readFileSync(join(ROOT, 'NOTICE'), 'utf8');
+for (const p of PACKAGES) {
+  const rel = `packages/${p}/NOTICE`;
+  if (!existsSync(join(ROOT, rel))) {
+    fail(`${rel} missing — Apache-2.0 4(d) requires it to ship with the package`);
+  } else if (readFileSync(join(ROOT, rel), 'utf8') !== rootNotice) {
+    fail(`${rel} differs from the root NOTICE`);
+  }
+}
 
 if (failures > 0) {
   console.error(`${failures} licence check(s) failed`);

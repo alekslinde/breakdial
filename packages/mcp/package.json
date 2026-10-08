@@ -1,18 +1,53 @@
 {
   "name": "@breakdial/mcp",
   "version": "0.1.0",
-  "description": "MCP control plane: breakdial_set / fire / list / verify. Agent remote for BreakDial.",
+  "description": "MCP server + tools for BreakDial: breakdial_set / fire / list / verify. Agent remote control.",
   "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./server": {
+      "types": "./dist/server.d.ts",
+      "default": "./dist/server.js"
+    }
+  },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "bin": {
+    "breakdial-mcp": "./dist/bin.js"
+  },
+  "sideEffects": false,
   "files": [
-    "dist"
+    "dist",
+    "NOTICE"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json"
   },
+  "keywords": [
+    "chaos",
+    "fault-injection",
+    "mcp"
+  ],
   "dependencies": {
-    "@breakdial/core": "0.1.0"
+    "@breakdial/core": "0.1.0",
+    "@modelcontextprotocol/sdk": "^1.32.1"
   },
-  "license": "Apache-2.0"
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/alekslinde/breakdial.git",
+    "directory": "packages/mcp"
+  },
+  "homepage": "https://github.com/alekslinde/breakdial/tree/main/packages/mcp#readme",
+  "bugs": "https://github.com/alekslinde/breakdial/issues",
+  "license": "Apache-2.0",
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "engines": {
+    "node": ">=22.14.0"
+  }
 }

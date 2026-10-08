@@ -1,7 +1,7 @@
 {
-  "name": "@breakdial/react",
+  "name": "breakdial",
   "version": "0.1.0",
-  "description": "<BreakDial/> slider + useBreak() hook. Thin wrapper over @breakdial/core.",
+  "description": "One dial (0-10) that breaks anything \u2014 from UI jank to backend outage. Re-exports @breakdial/core.",
   "type": "module",
   "exports": {
     ".": {
@@ -11,6 +11,9 @@
   },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "bin": {
+    "breakdial": "./dist/cli.js"
+  },
   "sideEffects": false,
   "files": [
     "dist",
@@ -22,21 +25,18 @@
   "keywords": [
     "chaos",
     "fault-injection",
-    "react"
+    "testing",
+    "resilience"
   ],
-  "peerDependencies": {
-    "@breakdial/core": "0.1.0",
-    "react": "^18 || ^19"
-  },
-  "devDependencies": {
+  "dependencies": {
     "@breakdial/core": "0.1.0"
   },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/alekslinde/breakdial.git",
-    "directory": "packages/react"
+    "directory": "packages/breakdial"
   },
-  "homepage": "https://github.com/alekslinde/breakdial/tree/main/packages/react#readme",
+  "homepage": "https://github.com/alekslinde/breakdial#readme",
   "bugs": "https://github.com/alekslinde/breakdial/issues",
   "license": "Apache-2.0",
   "publishConfig": {

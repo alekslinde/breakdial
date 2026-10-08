@@ -1,0 +1,17 @@
+BreakDial
+Copyright 2026 Aleks Linde
+
+This product is licensed under the Apache License, Version 2.0.
+See LICENSE and LICENSES/Apache-2.0.txt.
+
+All packages (breakdial, @breakdial/core, @breakdial/fetch,
+@breakdial/react, @breakdial/express, @breakdial/mcp) ship under
+Apache-2.0. Third-party notices below.
+
+Third-party components
+----------------------
+- TypeScript (build-time devDependency only, not shipped):
+  Apache-2.0, https://github.com/microsoft/TypeScript
+- React (peerDependency of @breakdial/react only: expected from the
+  host app, never bundled): MIT, https://github.com/facebook/react
+- No other runtime third-party dependencies.
