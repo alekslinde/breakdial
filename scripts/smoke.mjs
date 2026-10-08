@@ -268,6 +268,29 @@ assert.equal(committed, 'untouched', 'does not write to a committed response');
   assert.ok(hostile.includes('keep-me'), 'unrelated props still pass through');
 }
 
+// --- engines.node floor ----------------------------------------------------
+// A prerelease sorts below its release, so 22.14.0-rc.1 must NOT satisfy
+// >=22.14.0 — accepting it is the unsafe direction for this check.
+{
+  const { satisfiesFloor } = await import('./check-node-floor.mjs');
+  const cases = [
+    ['22.14.0', '>=22.14.0', true],
+    ['22.13.0', '>=22.14.0', false],
+    ['22.14.0-rc.1', '>=22.14.0', false],
+    ['22.15.0-rc.1', '>=22.14.0', true],
+    ['22.14.1', '>=22.14.0', true],
+    ['24.0.0', '>=22.14.0', true],
+    ['22.14.0', '>=22.14.0 <25', true],
+    ['22.14.0', '^22.14.0', false], // unsupported range is reported, not assumed ok
+    ['22.14.0', '', false],
+    ['22.14.0', undefined, false],
+  ];
+  for (const [version, range, want] of cases) {
+    const { ok } = satisfiesFloor(version, range);
+    assert.equal(ok, want, `satisfiesFloor(${version}, ${JSON.stringify(range)})`);
+  }
+}
+
 // --- cli -------------------------------------------------------------------
 const { run: cliRun, parseArgs } = await import('../packages/breakdial/dist/cli.js');
 
@@ -275,10 +298,15 @@ assert.equal(cliRun(['--level', '3'], '9.9.9').code, 0, 'valid level exits 0');
 assert.equal(cliRun(['--help'], '9.9.9').code, 0);
 assert.deepEqual(cliRun(['--version'], '9.9.9').out, ['9.9.9'], '--version prints the version');
 
-// usage errors exit 2 and explain themselves on stderr
+// usage errors exit 2 and explain themselves on stderr.
+// The `--level` cases matter most: Number() would accept '', ' ', '0x5', '1e1'
+// and silently round '3.7', so an empty CI variable would exit 0 with chaos
+// off — a green run that injected nothing.
 for (const argv of [
   [], ['--level', '11'], ['--level', '-1'], ['--level', 'loud'], ['--bogus'], ['--level'],
   ['--=oops'], ['--'],
+  ['--level', ''], ['--level', ' '], ['--level', '0x5'], ['--level', '1e1'],
+  ['--level', '3.7'], ['--level', '1_0'], ['--level', 'Infinity'], ['--level', 'NaN'],
 ]) {
   const r = cliRun(argv, '9.9.9');
   assert.equal(r.code, 2, `${JSON.stringify(argv)} is a usage error`);
@@ -307,6 +335,11 @@ assert.ok(!typoText.includes('super-secret'), 'does not echo the attached value'
 // --flag=value and short flags
 assert.equal(parseArgs(['--level=6']).level, 6, '--flag=value form');
 assert.equal(parseArgs(['-l', '6', '-s', 'abc']).seed, 'abc', 'short flags');
+
+// every valid level is accepted, and only those
+for (let n = 0; n <= 10; n++) {
+  assert.equal(parseArgs(['--level', String(n)]).level, n, `level ${n} accepted`);
+}
 
 // the level given actually reaches the engine
 cliRun(['--level', '8', '--seed', 'cli-seed'], '9.9.9');

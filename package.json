@@ -2,7 +2,7 @@
   "name": "breakdial-monorepo",
   "version": "0.0.0",
   "private": true,
-  "description": "Workspace root for breakdial. Not published — the published root package is packages/breakdial.",
+  "description": "Workspace root for breakdial. Not published \u2014 the published root package is packages/breakdial.",
   "type": "module",
   "workspaces": [
     "packages/*"
@@ -13,7 +13,9 @@
     "typecheck": "tsc -b tsconfig.json --force",
     "smoke": "node ./scripts/smoke.mjs",
     "license:check": "node ./scripts/check-license.mjs",
-    "test": "npm run build && npm run smoke"
+    "check:tarballs": "node ./scripts/check-tarballs.mjs",
+    "check:node-floor": "node ./scripts/check-node-floor.mjs",
+    "test": "npm run build && npm run smoke && npm run license:check && npm run check:tarballs"
   },
   "license": "Apache-2.0",
   "devDependencies": {

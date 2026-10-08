@@ -69,10 +69,14 @@ export function parseArgs(argv: readonly string[]): ParsedArgs {
       case '-l':
       case '--level': {
         const raw = takeValue('--level');
-        const n = Number(raw);
-        if (!Number.isFinite(n)) throw new UsageError(`--level must be a number 0-10, got "${raw}"`);
-        if (n < 0 || n > 10) throw new UsageError(`--level must be between 0 and 10, got ${raw}`);
-        out.level = n;
+        // Number() would accept '', ' ', '0x5', '1e1' and '3.7' — an empty CI
+        // variable would exit 0 with chaos silently off, which is the one
+        // outcome a fault-injection tool must never produce. Demand an
+        // integer 0-10, written plainly.
+        if (!/^(10|[0-9])$/.test(raw.trim())) {
+          throw new UsageError(`--level must be a whole number 0-10, got "${raw}"`);
+        }
+        out.level = Number(raw.trim());
         sawLevel = true;
         break;
       }

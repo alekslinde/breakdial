@@ -1,0 +1,190 @@
+# SPDX-FileCopyrightText: 2026 Aleks Linde
+# SPDX-License-Identifier: Apache-2.0
+#
+# Stages tarballs for a release; it never publishes.
+#
+# A version on npm can never be replaced, and unpublishing is restricted after
+# 72 hours. So this workflow stops at a staged tarball and a maintainer
+# approves it with 2FA — no single workflow run can put something permanent in
+# front of users. Leave "Allow npm publish" UNCHECKED on each package's trusted
+# publisher, or that gate can be bypassed.
+#
+# Authentication is npm trusted publishing (OIDC): no NPM_TOKEN exists in this
+# repo, and none should. Each package needs its own trusted publisher
+# configured on npmjs.com, naming this repo and `release.yml` (the bare
+# filename, not a path).
+#
+# Five packages depend on @breakdial/core, and a *staged* core does not satisfy
+# their range — `npm view` only sees published versions. So core is staged in
+# its own job; you approve it; then `stage-dependents` runs and verifies core is
+# really published before staging the rest.
+name: release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      packages:
+        description: 'Which packages to stage'
+        type: choice
+        options: [verify-only, core, dependents]
+        default: verify-only
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  # Everything that must hold before anything is staged. No registry writes,
+  # so this needs no OIDC permission and no environment approval.
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+
+      - run: npm ci
+
+      # install -> build -> test: the smoke suite imports dist/ through the
+      # real resolver, so an unbuilt tree would assert nothing.
+      - name: Build
+        run: npm run build
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Smoke test the built output
+        run: npm run smoke
+
+      - name: Licence headers, manifests and NOTICE copies
+        run: npm run license:check
+
+      - name: Verify tarball contents
+        run: npm run check:tarballs
+
+      # The tag must match what the manifests say, or the release is named one
+      # thing and contains another.
+      - name: Check tag matches package versions
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: node ./scripts/check-release-tag.mjs "${GITHUB_REF_NAME}"
+
+  stage-core:
+    needs: verify
+    if: ${{ github.event_name == 'push' || inputs.packages == 'core' }}
+    runs-on: ubuntu-latest
+    environment: release
+    permissions:
+      contents: read
+      id-token: write # required for the OIDC credential exchange
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          # Must satisfy engines.node. Node 24 bundles npm 11.x, new enough for
+          # OIDC but not for `npm stage`, so npm is upgraded explicitly below
+          # rather than inferred from the Node version.
+          node-version: '24'
+          cache: npm
+          registry-url: 'https://registry.npmjs.org'
+
+      # `npm stage` needs npm >= 12; OIDC needs >= 11.5.1. On an older npm no
+      # credential exchange happens, the PUT goes out unauthenticated, and the
+      # registry answers a bare 404 that reads as "package missing".
+      - name: Upgrade npm for staging + OIDC
+        run: |
+          npm install -g npm@latest
+          npm -v
+          npm help stage >/dev/null || { echo "::error::npm stage unavailable in npm $(npm -v)"; exit 1; }
+
+      - run: npm ci
+      - run: npm run build
+
+      - name: Stage @breakdial/core
+        run: npm stage publish --workspace @breakdial/core --provenance
+
+      - name: Next step
+        run: |
+          VERSION=$(node -p "require('./packages/core/package.json').version")
+          {
+            echo "### @breakdial/core@${VERSION} staged"
+            echo
+            echo 'Not installable yet. Approve it with 2FA:'
+            echo
+            echo '```bash'
+            echo 'npm stage list'
+            echo 'npm stage view <stage-id>'
+            echo 'npm stage approve <stage-id>'
+            echo '```'
+            echo
+            echo 'Then run this workflow again with `packages: dependents`.'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # Run this only after core is approved. It verifies core is really on the
+  # registry, so the five dependents cannot be staged against a range that
+  # nothing satisfies.
+  stage-dependents:
+    needs: verify
+    if: ${{ inputs.packages == 'dependents' }}
+    runs-on: ubuntu-latest
+    environment: release
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Upgrade npm for staging + OIDC
+        run: |
+          npm install -g npm@latest
+          npm -v
+          npm help stage >/dev/null || { echo "::error::npm stage unavailable in npm $(npm -v)"; exit 1; }
+
+      - run: npm ci
+      - run: npm run build
+
+      # A staged core does not count: npm view only sees published versions.
+      - name: Require @breakdial/core to be published
+        run: |
+          VERSION=$(node -p "require('./packages/core/package.json').version")
+          if npm view "@breakdial/core@${VERSION}" version >/dev/null 2>&1; then
+            echo "@breakdial/core@${VERSION} is published — dependents can resolve it."
+          else
+            echo "::error::@breakdial/core@${VERSION} is not published. Approve the staged core first."
+            exit 1
+          fi
+
+      - name: Stage the dependent packages
+        run: |
+          for pkg in breakdial @breakdial/fetch @breakdial/express @breakdial/mcp @breakdial/react; do
+            echo "::group::stage $pkg"
+            npm stage publish --workspace "$pkg" --provenance
+            echo "::endgroup::"
+          done
+
+      - name: Next step
+        run: |
+          {
+            echo '### Dependents staged'
+            echo
+            echo 'Approve each with 2FA:'
+            echo
+            echo '```bash'
+            echo 'npm stage list'
+            echo 'npm stage approve <stage-id>'
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

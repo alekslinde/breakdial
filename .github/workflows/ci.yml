@@ -1,0 +1,62 @@
+# SPDX-FileCopyrightText: 2026 Aleks Linde
+# SPDX-License-Identifier: Apache-2.0
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # The floor must be what engines.node claims, plus the current LTS.
+        # Widen the matrix before widening the range, never after.
+        node: [22, 24, 26]
+    name: node ${{ matrix.node }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+
+      # `node: 22` resolves to the latest 22.x, so assert the runner really
+      # satisfies the declared floor rather than trusting the major.
+      - name: Check runner satisfies engines.node
+        run: node ./scripts/check-node-floor.mjs
+
+      - run: npm ci
+
+      # install -> build -> test, in that order: the smoke suite imports
+      # dist/ through the real resolver, so an unbuilt tree would test nothing.
+      - name: Build
+        run: npm run build
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Smoke test the built output
+        run: npm run smoke
+
+      # Also gates NOTICE drift between the root and the per-package copies.
+      # Without this here, drift passes CI and only fails in release.yml —
+      # after the tag is already pushed.
+      - name: Licence headers, manifests and NOTICE copies
+        run: npm run license:check
+
+      # A manifest can claim a file that is absent from the tarball with no
+      # warning. Pack and assert, rather than trusting `files`.
+      - name: Pack and verify tarball contents
+        run: npm run check:tarballs

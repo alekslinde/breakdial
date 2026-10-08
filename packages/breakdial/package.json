@@ -1,7 +1,7 @@
 {
   "name": "breakdial",
   "version": "0.1.0",
-  "description": "One dial (0-10) that breaks anything — from UI jank to backend outage. Re-exports @breakdial/core.",
+  "description": "One dial (0-10) that breaks anything \u2014 from UI jank to backend outage. Re-exports @breakdial/core.",
   "type": "module",
   "exports": {
     ".": {
@@ -16,7 +16,8 @@
   },
   "sideEffects": false,
   "files": [
-    "dist"
+    "dist",
+    "NOTICE"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json"
@@ -41,5 +42,8 @@
   "publishConfig": {
     "access": "public",
     "provenance": true
+  },
+  "engines": {
+    "node": ">=22.14.0"
   }
 }
