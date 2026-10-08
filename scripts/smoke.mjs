@@ -276,11 +276,33 @@ assert.equal(cliRun(['--help'], '9.9.9').code, 0);
 assert.deepEqual(cliRun(['--version'], '9.9.9').out, ['9.9.9'], '--version prints the version');
 
 // usage errors exit 2 and explain themselves on stderr
-for (const argv of [[], ['--level', '11'], ['--level', '-1'], ['--level', 'loud'], ['--bogus'], ['--level']]) {
+for (const argv of [
+  [], ['--level', '11'], ['--level', '-1'], ['--level', 'loud'], ['--bogus'], ['--level'],
+  ['--=oops'], ['--'],
+]) {
   const r = cliRun(argv, '9.9.9');
   assert.equal(r.code, 2, `${JSON.stringify(argv)} is a usage error`);
   assert.ok(r.err.join('\n').includes('breakdial:'), 'usage error names the tool');
+  assert.deepEqual(r.out, [], `${JSON.stringify(argv)} writes nothing to stdout`);
 }
+
+// A token with no option name reports that, rather than `unknown option "--"`,
+// which names nothing back to the user.
+for (const argv of [['--=oops'], ['--'], ['-']]) {
+  const r = cliRun(argv, '9.9.9');
+  assert.ok(
+    r.err.join('\n').includes('expected an option name'),
+    `${JSON.stringify(argv)} should report a missing option name, got ${JSON.stringify(r.err[0])}`,
+  );
+}
+
+// A mistyped flag must not echo its attached value: `--sed=ci-42` is a typo
+// for --seed, and the value lands in stderr and CI logs.
+const typo = cliRun(['--level', '3', '--sed=super-secret'], '9.9.9');
+assert.equal(typo.code, 2);
+const typoText = typo.err.join('\n');
+assert.ok(typoText.includes('--sed'), 'names the unknown flag');
+assert.ok(!typoText.includes('super-secret'), 'does not echo the attached value');
 
 // --flag=value and short flags
 assert.equal(parseArgs(['--level=6']).level, 6, '--flag=value form');
@@ -291,13 +313,25 @@ cliRun(['--level', '8', '--seed', 'cli-seed'], '9.9.9');
 assert.equal(getLevel(), 8, 'cli sets the dial');
 assert.equal(getState().seed, 'cli-seed', 'cli passes the seed through');
 
-// --app is not silently ignored while the proxy is unreleased
-const app = cliRun(['--level', '3', '--app', 'http://localhost:3000'], '9.9.9');
-assert.equal(app.code, 1, '--app reports failure rather than pretending to proxy');
-assert.ok(app.err.join('\n').includes('@breakdial/proxy'), '--app names what it needs');
-// A failing run must not also print a success line that reads like the proxy
-// came up — nothing on stdout at all.
-assert.deepEqual(app.out, [], '--app writes nothing to stdout when it fails');
+// --app rejects the whole invocation rather than accepting a level and seed
+// and then silently discarding them.
+for (const argv of [
+  ['--level', '3', '--app', 'http://localhost:3000'],
+  ['--app', 'http://localhost:3000', '--level', '8', '--seed', 'ci-42'],
+  ['-a', 'http://localhost:3000', '-l', '4'],
+]) {
+  const r = cliRun(argv, '9.9.9');
+  assert.equal(r.code, 2, '--app is a usage error, not a partial success');
+  assert.ok(r.err.join('\n').includes('@breakdial/proxy'), '--app names what it needs');
+  assert.deepEqual(r.out, [], '--app writes nothing to stdout');
+}
+// and it must not have touched the dial on the way out
+dial(0, { seed: 'untouched' });
+cliRun(['--level', '9', '--app', 'http://localhost:3000'], '9.9.9');
+assert.equal(getLevel(), 0, '--app leaves the dial alone');
+
+// --app still requires its value, so the next token is not eaten as a level
+assert.equal(cliRun(['--app'], '9.9.9').code, 2, '--app with no value is a usage error');
 
 // The bin runs when invoked through a symlink, as npm/npx install it. The
 // entry-point guard compares argv[1] to import.meta.url, which never matches
@@ -305,7 +339,7 @@ assert.deepEqual(app.out, [], '--app writes nothing to stdout when it fails');
 // exit 0, no output. Importing run() cannot catch that, so spawn it.
 {
   const { execFileSync, spawnSync } = await import('node:child_process');
-  const { mkdtempSync, symlinkSync, rmSync } = await import('node:fs');
+  const { mkdtempSync, symlinkSync, rmSync, statSync, readFileSync } = await import('node:fs');
   const { tmpdir } = await import('node:os');
   const { join } = await import('node:path');
   const { fileURLToPath } = await import('node:url');
@@ -313,11 +347,26 @@ assert.deepEqual(app.out, [], '--app writes nothing to stdout when it fails');
   const cli = fileURLToPath(new URL('../packages/breakdial/dist/cli.js', import.meta.url));
   const dir = mkdtempSync(join(tmpdir(), 'breakdial-bin-'));
   try {
-    const link = join(dir, 'breakdial');
-    symlinkSync(cli, link);
     const direct = execFileSync(process.execPath, [cli, '--level', '5'], { encoding: 'utf8' });
     assert.ok(direct.includes('level 5'), 'cli prints when run directly');
-    const viaLink = spawnSync(process.execPath, [link, '--level', '5'], { encoding: 'utf8' });
+
+    // Reproduce how npm installs a bin: a symlink outside the package tree
+    // pointing at the real file, launched via its shebang rather than an
+    // explicit `node`. Passing process.execPath would make both the mode and
+    // the shebang irrelevant, and copying the file elsewhere would break its
+    // own resolution of @breakdial/core.
+    assert.ok(
+      readFileSync(cli, 'utf8').startsWith('#!'),
+      'dist/cli.js keeps its shebang, or an exec-ed bin cannot start',
+    );
+    // tsc emits 0644, so the build chmods it; npm would also do this on
+    // install, but a clone should be able to run the bin too.
+    assert.ok(statSync(cli).mode & 0o111, 'dist/cli.js is executable after build');
+    const link = join(dir, 'breakdial');
+    symlinkSync(cli, link);
+
+    const viaLink = spawnSync(link, ['--level', '5'], { encoding: 'utf8' });
+    assert.equal(viaLink.error, undefined, `bin failed to exec: ${viaLink.error?.message ?? ''}`);
     assert.equal(viaLink.status, 0, 'cli exits 0 through a symlink');
     assert.ok(
       viaLink.stdout.includes('level 5'),

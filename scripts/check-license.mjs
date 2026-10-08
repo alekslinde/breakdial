@@ -41,13 +41,11 @@ const checkDir = (dir) => {
     }
   }
 };
+// A package need not have sources (a data-only or dist-only package is
+// legitimate); only its manifest licence is mandatory, checked above.
 for (const p of PACKAGES) {
   const src = `packages/${p}/src`;
-  if (!existsSync(join(ROOT, src))) {
-    fail(`${src} missing — every package ships sources`);
-    continue;
-  }
-  checkDir(src);
+  if (existsSync(join(ROOT, src))) checkDir(src);
 }
 checkDir('scripts');
 

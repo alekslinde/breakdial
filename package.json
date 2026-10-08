@@ -8,7 +8,8 @@
     "packages/*"
   ],
   "scripts": {
-    "build": "tsc -b tsconfig.json",
+    "build": "tsc -b tsconfig.json && npm run postbuild:bin",
+    "postbuild:bin": "node -e \"require('node:fs').chmodSync('packages/breakdial/dist/cli.js', 0o755)\"",
     "typecheck": "tsc -b tsconfig.json --force",
     "smoke": "node ./scripts/smoke.mjs",
     "license:check": "node ./scripts/check-license.mjs",

@@ -58,9 +58,8 @@ install `@breakdial/core` once.
 npx breakdial --level 7 --seed ci-42
 ```
 
-Reports the dial it would set. `--app <url>` is accepted but needs
-`@breakdial/proxy`, which is not released yet, and says so rather than
-appearing to proxy.
+Reports the dial it would set. `--app <url>` is rejected until
+`@breakdial/proxy` ships, rather than appearing to proxy.
 
 ## Run
 

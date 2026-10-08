@@ -10,7 +10,6 @@ import { dial, levelLabel } from '@breakdial/core';
 export interface ParsedArgs {
   level: number;
   seed?: string;
-  app?: string;
   help: boolean;
   version: boolean;
 }
@@ -20,15 +19,18 @@ export class UsageError extends Error {}
 const USAGE = `breakdial — one dial (0-10) that breaks anything
 
 Usage:
-  breakdial --level <0-10> [--seed <value>] [--app <url>]
+  breakdial --level <0-10> [--seed <value>]
 
 Options:
   -l, --level <0-10>   chaos level: 0=off, 1-2 paper-cut, 3-4 jank,
                        5-7 outage, 8-10 catastrophe
   -s, --seed <value>   seed for reproducible runs
-  -a, --app <url>      proxy this app through the dial (needs @breakdial/proxy)
   -h, --help           show this help
   -v, --version        show version
+
+Not available yet:
+  -a, --app <url>      proxy an app through the dial; ships with
+                       @breakdial/proxy, which is unreleased
 
 Examples:
   breakdial --level 3
@@ -46,6 +48,9 @@ export function parseArgs(argv: readonly string[]): ParsedArgs {
     const [flag, inlineValue] = eq > 1 && arg.startsWith('-')
       ? [arg.slice(0, eq), arg.slice(eq + 1)]
       : [arg, undefined];
+    // `--=value` splits to a bare `--`, which names nothing useful back to the
+    // user; reject the token shape rather than reporting an empty flag.
+    if (/^-+$/.test(flag)) throw new UsageError('expected an option name');
     const takeValue = (name: string): string => {
       const v = inlineValue ?? argv[++i];
       if (v === undefined || v === '') throw new UsageError(`${name} needs a value`);
@@ -77,10 +82,18 @@ export function parseArgs(argv: readonly string[]): ParsedArgs {
         break;
       case '-a':
       case '--app':
-        out.app = takeValue('--app');
-        break;
+        // Reject the whole invocation rather than accepting a level and seed
+        // and then dropping them: half-honouring the command is worse than
+        // refusing it, because the exit code is the only signal either way.
+        takeValue('--app');
+        throw new UsageError(
+          '--app needs @breakdial/proxy, which is not released yet. '
+          + 'Set the dial from your app or tests instead (see --help).',
+        );
       default:
-        throw new UsageError(`unknown option "${arg}"`);
+        // Report `flag`, never `arg`: the raw token still carries any attached
+        // value, and a typo'd flag would echo it into stderr and CI logs.
+        throw new UsageError(`unknown option "${flag}"`);
     }
   }
 
@@ -119,15 +132,6 @@ export function run(argv: readonly string[], version: string): CliResult {
   if (args.version) {
     out.push(version);
     return { code: 0, out, err };
-  }
-
-  if (args.app !== undefined) {
-    // Fail before writing anything to stdout: a run that exits non-zero must
-    // not also print a success line that looks like the proxy came up.
-    err.push(
-      `breakdial: --app needs @breakdial/proxy, which is not released yet; ${args.app} was not proxied.`,
-    );
-    return { code: 1, out, err };
   }
 
   const d = dial(args.level, args.seed !== undefined ? { seed: args.seed } : undefined);
